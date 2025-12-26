@@ -59,7 +59,7 @@ $options = new Options(
 );
 
 // Rules: Check paths, ignore login/test
-$ignorePaths = ['/auth/login', '/test-db', '/debug-routing'];
+$ignorePaths = ['/auth/login', '/test-db', '/debug-routing', '/wiki'];
 
 // Add Base Path variants if dynamic base path is set
 if (isset($_ENV['APP_BASE_PATH'])) {
