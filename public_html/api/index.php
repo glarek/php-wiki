@@ -42,6 +42,20 @@ $app->add(function (Request $request, $handler) {
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
 });
 
+// Middleware: Strip Trailing Slashes
+$app->add(function (Request $request, $handler) {
+    $uri = $request->getUri();
+    $path = $uri->getPath();
+    
+    if ($path != '/' && substr($path, -1) == '/') {
+        $path = rtrim($path, '/'); // recursive remove is also fine: rtrim($path, '/')
+        $uri = $uri->withPath($path);
+        $request = $request->withUri($uri);
+    }
+    
+    return $handler->handle($request);
+});
+
 // Handle OPTIONS requests separately to avoid 405 errors
 $app->map(['OPTIONS'], '/{routes:.+}', function ($request, $response) {
     return $response;
