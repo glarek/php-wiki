@@ -265,69 +265,7 @@ $app->post('/auth/login', function (Request $request, Response $response) {
     return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
 });
 
-// Register Route
-$app->post('/auth/register', function (Request $request, Response $response) {
-    $data = $request->getParsedBody();
-    $username = trim($data['username'] ?? '');
-    $password = $data['password'] ?? '';
-    $email = trim($data['email'] ?? '');
-
-    if (empty($username) || empty($password) || empty($email)) {
-        throw new Exception("Username, password, and email are required", 400);
-    }
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        throw new Exception("Invalid email address", 400);
-    }
-
-    $db = new Database();
-    $conn = $db->connect();
-
-    // Check availability
-    $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
-    $stmt->execute(['username' => $username, 'email' => $email]);
-    if ($stmt->fetch()) {
-        throw new Exception("Username or email already exists", 409);
-    }
-
-    // Create User
-    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-    $verificationToken = bin2hex(random_bytes(32));
-    
-    $stmt = $conn->prepare("INSERT INTO users (username, password_hash, email, role, verification_token, is_verified) VALUES (:username, :hash, :email, 'guest', :token, 0)");
-    $stmt->execute([
-        'username' => $username,
-        'hash' => $passwordHash,
-        'email' => $email,
-        'token' => $verificationToken
-    ]);
-
-    // Send Email
-    $verifyLink = "https://" . $_SERVER['HTTP_HOST'] . $request->getUri()->getPath(); // Base URL logic can be tricky
-    // Easier: Use the known external domain or construct from environment if possible.
-    // Assuming api.tryckfall.nu is the host requested
-    $host = $_SERVER['HTTP_HOST'] ?? 'api.tryckfall.nu';
-    
-    // Construct Verification Link
-    // If the path to this API is /api, then the verify route is /api/auth/verify
-    $basePath = $_ENV['APP_BASE_PATH'] ?? '/api';
-    $verifyUrl = "https://" . $host . $basePath . "/auth/verify?token=" . $verificationToken;
-
-    $subject = "Verify your account at Tryckfall";
-    $message = "Hi $username,\n\nPlease click the following link to verify your account:\n$verifyUrl\n\nBest regards,\nTryckfall Team";
-    $headers = "From: no-reply@tryckfall.nu" . "\r\n" .
-               "X-Mailer: PHP/" . phpversion();
-
-    // Use php's mail() function
-    $mailSent = @mail($email, $subject, $message, $headers);
-
-    $response->getBody()->write(json_encode([
-        "status" => "success", 
-        "message" => "Registration successful. Please check your email for the verification link.",
-        "debug_link" => $mailSent ? "sent" : $verifyUrl // Fallback for dev/debug if mail fails
-    ]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
-});
+// Register route moved to top (PHPMailer implementation)
 
 // Verify Route
 $app->get('/auth/verify', function (Request $request, Response $response) {
