@@ -252,7 +252,8 @@ $checkAdmin = function (Request $request) {
     
     if (!$token || $role !== 'admin') {
         // Return detailed error for debugging
-        throw new Exception("Unauthorized: Admin access required. Found role: '{$role}'", 403);
+        $dump = json_encode($token);
+        throw new Exception("Unauthorized: Admin access required. Found role: '{$role}'. Full Token: {$dump}", 403);
     }
 };
 
