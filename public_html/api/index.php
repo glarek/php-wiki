@@ -33,17 +33,16 @@ $app->addBodyParsingMiddleware();
 
 // CORS Middleware
 $app->add(function (Request $request, $handler) {
-    if ($request->getMethod() === 'OPTIONS') {
-        // Handle OPTIONS explicitly to ensure correct headers are sent even if auth is skipped
-        $response = $handler->handle($request);
-    } else {
-        $response = $handler->handle($request);
-    }
-    
+    $response = $handler->handle($request);
     return $response
         ->withHeader('Access-Control-Allow-Origin', '*')
         ->withHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Origin, Authorization')
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+});
+
+// Handle OPTIONS requests separately to avoid 405 errors
+$app->map(['OPTIONS'], '/{routes:.+}', function ($request, $response) {
+    return $response;
 });
 
 // Configure JWT Middleware
