@@ -243,10 +243,16 @@ $app->get('/wiki/article/{slug}', function (Request $request, Response $response
 // --- Admin Category Routes (Protected) ---
 
 // Helper function to validate admin role
+// Helper function to validate admin role
 $checkAdmin = function (Request $request) {
     $token = $request->getAttribute('token'); // 'token' attribute set by JwtAuth
-    if (!$token || !isset($token['role']) || $token['role'] !== 'admin') {
-        throw new Exception("Unauthorized: Admin access required", 403);
+    
+    // Debugging: Check what we actually got
+    $role = $token['role'] ?? 'MISSING';
+    
+    if (!$token || $role !== 'admin') {
+        // Return detailed error for debugging
+        throw new Exception("Unauthorized: Admin access required. Found role: '{$role}'", 403);
     }
 };
 
