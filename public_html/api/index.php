@@ -86,8 +86,18 @@ $app->post('/auth/register', function (Request $request, Response $response) {
         $mail->SMTPAuth   = true;
         $mail->Username   = $_ENV['SMTP_USER'];
         $mail->Password   = $_ENV['SMTP_PASS'];
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // For Port 465
-        $mail->Port       = (int)$_ENV['SMTP_PORT'];
+        
+        $port = (int)$_ENV['SMTP_PORT'];
+        $mail->Port = $port;
+
+        if ($port === 587) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } elseif ($port === 465) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } else {
+             // Fallback or explicit None if using port 25 (not recommended)
+             // $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
+        }
 
         // Recipients
         $mail->setFrom($_ENV['SMTP_USER'], 'Tryckfall API'); // Verify this matches your SMTP user or is allowed
@@ -116,9 +126,14 @@ $app->post('/auth/register', function (Request $request, Response $response) {
         return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
 
     } catch (MailerException $e) {
-        // Mail failed, but user created. Should we delete user?
-        // Ideally yes, but for now we report error.
-        throw new Exception("Registration saved but email could not be sent. Error: {$e->getMessage()}", 500);
+        // Mail failed, so we must delete the user to prevent "zombie" accounts
+        if (isset($conn) && isset($username)) {
+            $cleanup = $conn->prepare("DELETE FROM users WHERE username = :username");
+            $cleanup->execute(['username' => $username]);
+        }
+        
+        $hostInfo = $_ENV['SMTP_HOST'] . ':' . $_ENV['SMTP_PORT'];
+        throw new Exception("Registration failed: Email could not be sent (Host: $hostInfo). Error: {$e->getMessage()}", 500);
     } catch (Exception $e) {
         $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
         $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
