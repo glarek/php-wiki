@@ -182,4 +182,28 @@ $errorMiddleware->setErrorHandler(
     }
 );
 
+// Default Error Handler (Catches all other exceptions)
+$errorMiddleware->setDefaultErrorHandler(
+    function (Request $request, Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails) use ($app) {
+        $response = $app->getResponseFactory()->createResponse();
+        
+        $statusCode = 500;
+        if (is_int($exception->getCode()) && $exception->getCode() >= 400 && $exception->getCode() < 600) {
+            $statusCode = $exception->getCode();
+        }
+
+        $payload = [
+            'status' => 'error',
+            'message' => $exception->getMessage()
+        ];
+        
+        if ($displayErrorDetails) {
+            $payload['trace'] = $exception->getTraceAsString();
+        }
+
+        $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        return $response->withStatus($statusCode)->withHeader('Content-Type', 'application/json');
+    }
+);
+
 $app->run();
