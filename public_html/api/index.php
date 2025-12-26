@@ -84,10 +84,17 @@ if (isset($_ENV['APP_BASE_PATH'])) {
     $ignorePaths[] = $bp . '/auth/login';
     $ignorePaths[] = $bp . '/test-db';
     $ignorePaths[] = $bp . '/debug-routing';
-    $ignorePaths[] = $bp . '/wiki';
+    // Only ignore PUBLIC Wiki routes (Menu & Articles)
+    // Do NOT ignore /wiki/categories which implies Admin ops!
+    $ignorePaths[] = $bp . '/wiki/menu';
+    $ignorePaths[] = $bp . '/wiki/article';
 }
 
 // Legacy/Hardcoded fallbacks for local dev
+$ignorePaths[] = '/public_html/api/auth/login';
+$ignorePaths[] = '/public_html/api/test-db';
+$ignorePaths[] = '/public_html/api/wiki/menu';
+$ignorePaths[] = '/public_html/api/wiki/article';
 $ignorePaths[] = '/public_html/api/auth/login';
 $ignorePaths[] = '/public_html/api/test-db';
 
