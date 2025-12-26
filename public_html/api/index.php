@@ -162,4 +162,16 @@ $app->get('/test-db', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
+// Debug Route (Temporary)
+$app->get('/debug-routing', function (Request $request, Response $response) {
+    $data = [
+        'base_path' => $request->getUri()->getPath(),
+        'uri' => (string) $request->getUri(),
+        'server_params' => $request->getServerParams(),
+        'env_base_path' => $_ENV['APP_BASE_PATH'] ?? 'NOT SET',
+    ];
+    $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
 $app->run();
