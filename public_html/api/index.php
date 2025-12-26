@@ -4,6 +4,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
 use Dotenv\Dotenv;
 use App\Database;
+use App\Category;
+use App\Article;
 
 // JwtAuth Imports
 use JimTools\JwtAuth\Middleware\JwtAuthentication;
@@ -175,16 +177,48 @@ $app->get('/test-db', function (Request $request, Response $response) {
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// Debug Route (Temporary)
-$app->get('/debug-routing', function (Request $request, Response $response) {
-    $data = [
-        'base_path' => $request->getUri()->getPath(),
-        'uri' => (string) $request->getUri(),
-        'server_params' => $request->getServerParams(),
-        'env_base_path' => $_ENV['APP_BASE_PATH'] ?? 'NOT SET',
-    ];
-    $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json');
+// --- Wiki API Routes (Public) ---
+
+// GET /wiki/menu - Returns the sidebar menu structure
+$app->get('/wiki/menu', function (Request $request, Response $response) {
+    try {
+        $db = new Database();
+        $conn = $db->connect();
+        $articleModel = new Article($conn);
+        $menu = $articleModel->getMenuStructure();
+
+        $response->getBody()->write(json_encode(["status" => "success", "data" => $menu]));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (Exception $e) {
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// GET /wiki/article/{slug} - Returns a single article
+$app->get('/wiki/article/{slug}', function (Request $request, Response $response, $args) {
+    $slug = $args['slug'];
+    
+    try {
+        $db = new Database();
+        $conn = $db->connect();
+        $articleModel = new Article($conn);
+        $article = $articleModel->getBySlug($slug);
+
+        if (!$article) {
+            $payload = json_encode(["status" => "error", "message" => "Article not found"]);
+            $response->getBody()->write($payload);
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
+
+        $response->getBody()->write(json_encode(["status" => "success", "data" => $article]));
+        return $response->withHeader('Content-Type', 'application/json');
+    } catch (Exception $e) {
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
 });
 
 $app->run();
