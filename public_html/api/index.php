@@ -131,22 +131,33 @@ $app->post('/auth/register', [AuthController::class, 'register']);
 $app->post('/auth/login', [AuthController::class, 'login']);
 $app->get('/auth/verify', [AuthController::class, 'verify']);
 
+// Middleware Import
+use App\Middleware\AdminMiddleware;
+use Slim\Routing\RouteCollectorProxy;
+
+// ...
+
 // Public Wiki
 $app->get('/wiki/menu', [WikiController::class, 'getMenu']);
 $app->get('/wiki/article/{slug}', [WikiController::class, 'getArticle']);
 
-// Admin Categories
-$app->post('/wiki/categories', [CategoryController::class, 'create']);
-$app->put('/wiki/categories/{id}', [CategoryController::class, 'update']);
-$app->delete('/wiki/categories/{id}', [CategoryController::class, 'delete']);
+// Admin Routes Group
+$app->group('/wiki', function (RouteCollectorProxy $group) {
+    
+    // Categories
+    $group->post('/categories', [CategoryController::class, 'create']);
+    $group->put('/categories/{id}', [CategoryController::class, 'update']);
+    $group->delete('/categories/{id}', [CategoryController::class, 'delete']);
 
-// Admin Articles
-$app->post('/wiki/articles', [ArticleController::class, 'create']);
-$app->put('/wiki/articles/{id}', [ArticleController::class, 'update']);
-$app->delete('/wiki/articles/{id}', [ArticleController::class, 'delete']);
+    // Articles
+    $group->post('/articles', [ArticleController::class, 'create']);
+    $group->put('/articles/{id}', [ArticleController::class, 'update']);
+    $group->delete('/articles/{id}', [ArticleController::class, 'delete']);
 
-// Admin Upload
-$app->post('/wiki/upload', [UploadController::class, 'upload']);
+    // Upload
+    $group->post('/upload', [UploadController::class, 'upload']);
+
+})->add(new AdminMiddleware());
 
 
 // Root/Test Routes
