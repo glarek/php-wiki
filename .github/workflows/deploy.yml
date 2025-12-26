@@ -1,0 +1,53 @@
+name: Deploy to Loopia
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  web-deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+
+      - name: 📦 Install Dependencies
+        run: |
+          cd back-end-core
+          composer install --no-dev --optimize-autoloader
+
+      - name: 📂 Sync 'back-end-core'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./back-end-core/
+          server-dir: ./back-end-core/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .env
+            install.php
+
+      - name: 📂 Sync 'public_html/api'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./public_html/api/
+          server-dir: ./public_html/api/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .txt
+            .md

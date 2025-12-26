@@ -1,0 +1,7 @@
+*.env
+*.server.env
+.env
+.server.env
+
+start_server.bat
+back-end-core/vendor/
