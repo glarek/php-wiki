@@ -171,7 +171,11 @@ if (isset($_ENV['APP_BASE_PATH'])) {
 }
 
 // Custom Error Handler
-$errorMiddleware = $app->addErrorMiddleware(true, true, true);
+$displayErrorDetails = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$logErrors = true;
+$logErrorDetails = true;
+
+$errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, $logErrors, $logErrorDetails);
 $errorMiddleware->setErrorHandler(
     AuthorizationException::class,
     function (Request $request, Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails) use ($app) {
