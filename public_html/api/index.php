@@ -222,4 +222,136 @@ $app->get('/wiki/article/{slug}', function (Request $request, Response $response
     }
 });
 
+// --- Admin Category Routes (Protected) ---
+
+// Helper function to validate admin role
+$checkAdmin = function (Request $request) {
+    $token = $request->getAttribute('token'); // 'token' attribute set by JwtAuth
+    if (!$token || !isset($token['role']) || $token['role'] !== 'admin') {
+        throw new Exception("Unauthorized: Admin access required", 403);
+    }
+};
+
+// POST /wiki/categories - Create Category
+$app->post('/wiki/categories', function (Request $request, Response $response) use ($checkAdmin) {
+    try {
+        $checkAdmin($request); // Verify Admin
+
+        $data = $request->getParsedBody();
+        $name = trim($data['name'] ?? '');
+        $slug = trim($data['slug'] ?? '');
+        $sortOrder = (int) ($data['sort_order'] ?? 0);
+
+        // 1. Validation
+        if (empty($name) || empty($slug)) {
+            throw new Exception("Name and Slug are required", 400);
+        }
+
+        // Sanitize Name (Strip Tags)
+        $name = strip_tags($name);
+
+        // Validate Slug (Lowercase, alphanumeric, hyphens only)
+        $slug = strtolower($slug);
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            throw new Exception("Invalid slug format. Use only lowercase letters, numbers, and hyphens.", 400);
+        }
+
+        $db = new Database();
+        $conn = $db->connect();
+        $categoryModel = new Category($conn);
+
+        // 2. Check for Duplicates (Name or Slug)
+        if ($categoryModel->exists($slug)) {
+            throw new Exception("A category with this slug already exists.", 409); // 409 Conflict
+        }
+
+        // 3. Create
+        $id = $categoryModel->create($name, $slug, $sortOrder);
+
+        $response->getBody()->write(json_encode(["status" => "success", "data" => ["id" => $id]]));
+        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// PUT /wiki/categories/{id} - Update Category
+$app->put('/wiki/categories/{id}', function (Request $request, Response $response, $args) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+
+        $id = (int) $args['id'];
+        $data = $request->getParsedBody();
+        $name = trim($data['name'] ?? '');
+        $slug = trim($data['slug'] ?? '');
+        $sortOrder = (int) ($data['sort_order'] ?? 0);
+
+        if (empty($name) || empty($slug)) {
+            throw new Exception("Name and Slug are required", 400);
+        }
+
+        $name = strip_tags($name);
+        $slug = strtolower($slug);
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            throw new Exception("Invalid slug format.", 400);
+        }
+
+        $db = new Database();
+        $conn = $db->connect();
+        $categoryModel = new Category($conn);
+
+        // Check availability (exclude current ID)
+        if ($categoryModel->exists($slug, $id)) {
+            throw new Exception("Slug is already in use by another category.", 409);
+        }
+
+        // Check if category exists
+        if (!$categoryModel->findById($id)) {
+            throw new Exception("Category not found", 404);
+        }
+
+        $categoryModel->update($id, $name, $slug, $sortOrder);
+
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "Category updated"]));
+        return $response->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// DELETE /wiki/categories/{id} - Delete Category
+$app->delete('/wiki/categories/{id}', function (Request $request, Response $response, $args) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+        $id = (int) $args['id'];
+
+        $db = new Database();
+        $conn = $db->connect();
+        $categoryModel = new Category($conn);
+
+        if (!$categoryModel->findById($id)) {
+            throw new Exception("Category not found", 404);
+        }
+
+        $categoryModel->delete($id);
+
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "Category deleted"]));
+        return $response->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
 $app->run();
