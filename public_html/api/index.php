@@ -26,6 +26,9 @@ $dotenv->load();
 // Create App
 $app = AppFactory::create();
 
+// Add Routing Middleware (Must be added early to execute LATE in LIFO stack)
+$app->addRoutingMiddleware();
+
 // Set base path (Dynamic from .env, or null if root)
 if (isset($_ENV['APP_BASE_PATH'])) {
     $app->setBasePath($_ENV['APP_BASE_PATH']);
@@ -151,7 +154,8 @@ $app->post('/auth/login', function (Request $request, Response $response) {
     return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
 });
 
-$app->addRoutingMiddleware();
+// Routing Middleware moved to top
+// $app->addRoutingMiddleware();
 
 // Error Middleware with Custom Handler for JWT Auth Failures
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
