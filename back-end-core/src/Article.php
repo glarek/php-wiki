@@ -64,4 +64,64 @@ class Article
 
         return array_values($menu); // Return indexed array
     }
-}
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->conn->prepare("SELECT * FROM articles WHERE id = :id");
+        $stmt->execute(['id' => $id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    public function exists(string $slug, ?int $excludeId = null): bool
+    {
+        $sql = "SELECT COUNT(*) FROM articles WHERE slug = :slug";
+        $params = ['slug' => $slug];
+
+        if ($excludeId) {
+            $sql .= " AND id != :id";
+            $params['id'] = $excludeId;
+        }
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn() > 0;
+    }
+
+    public function create(int $categoryId, string $title, string $slug, string $content, ?int $authorId): int
+    {
+        $stmt = $this->conn->prepare("
+            INSERT INTO articles (category_id, title, slug, content, author_id) 
+            VALUES (:category_id, :title, :slug, :content, :author_id)
+        ");
+        $stmt->execute([
+            'category_id' => $categoryId,
+            'title' => $title,
+            'slug' => $slug,
+            'content' => $content,
+            'author_id' => $authorId
+        ]);
+        return (int) $this->conn->lastInsertId();
+    }
+
+    public function update(int $id, int $categoryId, string $title, string $slug, string $content): bool
+    {
+        $stmt = $this->conn->prepare("
+            UPDATE articles 
+            SET category_id = :category_id, title = :title, slug = :slug, content = :content 
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            'id' => $id,
+            'category_id' => $categoryId,
+            'title' => $title,
+            'slug' => $slug,
+            'content' => $content
+        ]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->conn->prepare("DELETE FROM articles WHERE id = :id");
+        return $stmt->execute(['id' => $id]);
+    }

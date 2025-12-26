@@ -386,4 +386,244 @@ $app->delete('/wiki/categories/{id}', function (Request $request, Response $resp
     }
 });
 
+// --- Admin Article Routes (Protected) ---
+
+// POST /wiki/articles - Create Article
+$app->post('/wiki/articles', function (Request $request, Response $response) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+
+        $data = $request->getParsedBody();
+        $categoryId = (int) ($data['category_id'] ?? 0);
+        $title = trim($data['title'] ?? '');
+        $slug = trim($data['slug'] ?? '');
+        $content = trim($data['content'] ?? '');
+        
+        // Get Author ID from Token
+        $token = $request->getAttribute('token');
+        $authorId = $token['sub'] ?? null; // 'sub' is user ID in JWT
+
+        if (empty($title) || empty($slug) || $categoryId <= 0) {
+            throw new Exception("Title, Slug, and Category ID are required", 400);
+        }
+
+        // Validate Slug
+        $slug = strtolower($slug);
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            throw new Exception("Invalid slug format.", 400);
+        }
+
+        $db = new Database();
+        $conn = $db->connect();
+        $articleModel = new Article($conn);
+        $categoryModel = new Category($conn);
+
+        // Check if Category exists
+        if (!$categoryModel->findById($categoryId)) {
+            throw new Exception("Category not found", 404);
+        }
+
+        // Check for Duplicates
+        if ($articleModel->exists($slug)) {
+            throw new Exception("An article with this slug already exists.", 409);
+        }
+
+        $id = $articleModel->create($categoryId, $title, $slug, $content, $authorId);
+
+        $response->getBody()->write(json_encode(["status" => "success", "data" => ["id" => $id]]));
+        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// PUT /wiki/articles/{id} - Update Article
+$app->put('/wiki/articles/{id}', function (Request $request, Response $response, $args) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+
+        $id = (int) $args['id'];
+        $data = $request->getParsedBody();
+        $categoryId = (int) ($data['category_id'] ?? 0);
+        $title = trim($data['title'] ?? '');
+        $slug = trim($data['slug'] ?? '');
+        $content = trim($data['content'] ?? '');
+
+        if (empty($title) || empty($slug) || $categoryId <= 0) {
+            throw new Exception("Title, Slug, and Category ID are required", 400);
+        }
+
+        $slug = strtolower($slug);
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            throw new Exception("Invalid slug format.", 400);
+        }
+
+        $db = new Database();
+        $conn = $db->connect();
+        $articleModel = new Article($conn);
+        $categoryModel = new Category($conn);
+
+        // Check availability (exclude current ID)
+        if ($articleModel->exists($slug, $id)) {
+            throw new Exception("Slug is already in use by another article.", 409);
+        }
+
+        // Check if article exists
+        if (!$articleModel->findById($id)) {
+            throw new Exception("Article not found", 404);
+        }
+
+         // Check if Category exists
+         if (!$categoryModel->findById($categoryId)) {
+            throw new Exception("Category not found", 404);
+        }
+
+        $articleModel->update($id, $categoryId, $title, $slug, $content);
+
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "Article updated"]));
+        return $response->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// DELETE /wiki/articles/{id} - Delete Article
+$app->delete('/wiki/articles/{id}', function (Request $request, Response $response, $args) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+        $id = (int) $args['id'];
+
+        $db = new Database();
+        $conn = $db->connect();
+        $articleModel = new Article($conn);
+
+        if (!$articleModel->findById($id)) {
+            throw new Exception("Article not found", 404);
+        }
+
+        $articleModel->delete($id);
+
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "Article deleted"]));
+        return $response->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
+// --- Image Upload Route (Admin Protected) ---
+
+$app->post('/wiki/upload', function (Request $request, Response $response) use ($checkAdmin) {
+    try {
+        $checkAdmin($request);
+
+        $uploadedFiles = $request->getUploadedFiles();
+        if (empty($uploadedFiles['image'])) {
+            throw new Exception("No image uploaded", 400);
+        }
+
+        $uploadedFile = $uploadedFiles['image'];
+        if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
+            throw new Exception("File upload failed", 500);
+        }
+
+        $filename = $uploadedFile->getClientFilename();
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // Validation
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+        
+        if (!in_array($extension, $allowedExtensions)) {
+             throw new Exception("Invalid file extension. Allowed: " . implode(', ', $allowedExtensions), 400);
+        }
+
+        // Mime Type Check
+        // Note: For SVG, finfo might detect 'text/xml' or 'image/svg+xml' or 'text/plain' depending on server config.
+        // We will trust extension for SVG for now if strict mime check fails, but ideally we check content.
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->buffer($uploadedFile->getStream()->getContents());
+        
+        // Reset stream
+        $uploadedFile->getStream()->rewind();
+
+        if (!in_array($mimeType, $allowedMimeTypes)) {
+             // Exception for SVG which can be finicky
+            if ($extension === 'svg' && str_contains($mimeType, 'xml')) {
+                // Allow XML mime types for SVG
+            } else {
+                 throw new Exception("Invalid file type: $mimeType", 400);
+            }
+        }
+
+        // Size Check (5MB)
+        if ($uploadedFile->getSize() > 5 * 1024 * 1024) {
+             throw new Exception("File too large. Max 5MB.", 400);
+        }
+
+        // Generate Unique Name
+        $basename = bin2hex(random_bytes(8));
+        $newFilename = sprintf('%s.%s', $basename, $extension);
+        
+        // Define directory relative to this file
+        // index.php is in public_html/api
+        // uploads is in public_html/uploads
+        $directory = __DIR__ . '/../uploads';
+        
+        // Create directory if not exists (should be created by task, but good for portability)
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        // Move File
+        $uploadedFile->moveTo($directory . DIRECTORY_SEPARATOR . $newFilename);
+
+        // Build Public URL
+        $scheme = $request->getUri()->getScheme();
+        $host = $request->getUri()->getHost();
+        $port = $request->getUri()->getPort();
+        
+        // If we have APP_BASE_PATH, we need to handle it.
+        // APP_BASE_PATH=/api (on prod) points to public_html/api
+        // But uploads are in public_html/uploads
+        // So correct URL is scheme://host/uploads/filename
+        
+        // However, if we are on localhost with port 8000 serving public_html:
+        // http://localhost:8000/uploads/filename
+        
+        // Construct Base URL manually to avoid /api prefix issues
+        $baseUrl = $scheme . '://' . $host;
+        if ($port && $port !== 80 && $port !== 443) {
+            $baseUrl .= ':' . $port;
+        }
+
+        // This assumes public_html/uploads is effectively /uploads from the web root
+        $url = $baseUrl . '/uploads/' . $newFilename;
+
+        $response->getBody()->write(json_encode([
+            "status" => "success", 
+            "url" => $url,
+            "filename" => $newFilename
+        ]));
+        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
+
 $app->run();
