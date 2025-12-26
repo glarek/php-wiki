@@ -67,6 +67,7 @@ if (isset($_ENV['APP_BASE_PATH'])) {
     $ignorePaths[] = $bp . '/auth/login';
     $ignorePaths[] = $bp . '/test-db';
     $ignorePaths[] = $bp . '/debug-routing';
+    $ignorePaths[] = $bp . '/wiki';
 }
 
 // Legacy/Hardcoded fallbacks for local dev
