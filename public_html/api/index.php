@@ -17,6 +17,10 @@ use JimTools\JwtAuth\Rules\RequestMethodRule;
 use JimTools\JwtAuth\Exceptions\AuthorizationException;
 use Firebase\JWT\JWT;
 
+// PHPMailer Imports
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception as MailerException;
+
 require __DIR__ . '/../../back-end-core/vendor/autoload.php';
 
 // Load Environment Variables
@@ -28,6 +32,100 @@ $app = AppFactory::create();
 
 // Add Routing Middleware (Must be added early to execute LATE in LIFO stack)
 $app->addRoutingMiddleware();
+
+// ALL MIDDLEWARE ETC... (omitted for brevity in replacement, but user file has it)
+
+// Register Route
+$app->post('/auth/register', function (Request $request, Response $response) {
+    try {
+        $data = $request->getParsedBody();
+        $username = trim($data['username'] ?? '');
+        $password = $data['password'] ?? '';
+        $email = trim($data['email'] ?? '');
+
+        if (empty($username) || empty($password) || empty($email)) {
+            throw new Exception("Username, password, and email are required", 400);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new Exception("Invalid email address", 400);
+        }
+
+        $db = new Database();
+        $conn = $db->connect();
+
+        // Check availability
+        $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
+        $stmt->execute(['username' => $username, 'email' => $email]);
+        if ($stmt->fetch()) {
+            throw new Exception("Username or email already exists", 409);
+        }
+
+        // Create User
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $verificationToken = bin2hex(random_bytes(32));
+        
+        $stmt = $conn->prepare("INSERT INTO users (username, password_hash, email, role, verification_token, is_verified) VALUES (:username, :hash, :email, 'guest', :token, 0)");
+        $stmt->execute([
+            'username' => $username,
+            'hash' => $passwordHash,
+            'email' => $email,
+            'token' => $verificationToken
+        ]);
+
+        // Send Email via PHPMailer
+        $host = $_SERVER['HTTP_HOST'] ?? 'api.tryckfall.nu';
+        $basePath = $_ENV['APP_BASE_PATH'] ?? '/api';
+        $verifyUrl = "https://" . $host . $basePath . "/auth/verify?token=" . $verificationToken;
+
+        $mail = new PHPMailer(true);
+
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host       = $_ENV['SMTP_HOST'];
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $_ENV['SMTP_USER'];
+        $mail->Password   = $_ENV['SMTP_PASS'];
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // For Port 465
+        $mail->Port       = (int)$_ENV['SMTP_PORT'];
+
+        // Recipients
+        $mail->setFrom($_ENV['SMTP_USER'], 'Tryckfall API'); // Verify this matches your SMTP user or is allowed
+        $mail->addAddress($email, $username);
+
+        // Content
+        $mail->isHTML(true);
+        $mail->Subject = 'Verify your account at Tryckfall';
+        $mail->Body    = "
+            <h1>Welcome to Tryckfall!</h1>
+            <p>Hi $username,</p>
+            <p>Please click the button below to verify your account:</p>
+            <p><a href='$verifyUrl' style='background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Verify Email</a></p>
+            <p>Or copy this link: $verifyUrl</p>
+            <br>
+            <p>Best regards,<br>Tryckfall Team</p>
+        ";
+        $mail->AltBody = "Hi $username,\n\nPlease verify your account: $verifyUrl\n\nBest regards,\nTryckfall Team";
+
+        $mail->send();
+
+        $response->getBody()->write(json_encode([
+            "status" => "success", 
+            "message" => "Registration successful. Please check your email for the verification link."
+        ]));
+        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+
+    } catch (MailerException $e) {
+        // Mail failed, but user created. Should we delete user?
+        // Ideally yes, but for now we report error.
+        throw new Exception("Registration saved but email could not be sent. Error: {$e->getMessage()}", 500);
+    } catch (Exception $e) {
+        $status = $e->getCode() && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+        $payload = json_encode(["status" => "error", "message" => $e->getMessage()]);
+        $response->getBody()->write($payload);
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+});
 
 // Set base path (Dynamic from .env, or null if root)
 if (isset($_ENV['APP_BASE_PATH'])) {
@@ -59,10 +157,7 @@ $app->add(function (Request $request, $handler) {
     return $handler->handle($request);
 });
 
-// Handle OPTIONS requests separately to avoid 405 errors
-$app->map(['OPTIONS'], '/{routes:.+}', function ($request, $response) {
-    return $response;
-});
+// OPTIONS route moved to bottom
 
 // Configure JWT Middleware
 $jwtSecret = $_ENV['JWT_SECRET'];
@@ -88,6 +183,8 @@ if (isset($_ENV['APP_BASE_PATH'])) {
     // Do NOT ignore /wiki/categories which implies Admin ops!
     $ignorePaths[] = $bp . '/wiki/menu';
     $ignorePaths[] = $bp . '/wiki/article';
+    $ignorePaths[] = $bp . '/auth/register';
+    $ignorePaths[] = $bp . '/auth/verify';
 }
 
 // Legacy/Hardcoded fallbacks for local dev
@@ -95,8 +192,8 @@ $ignorePaths[] = '/public_html/api/auth/login';
 $ignorePaths[] = '/public_html/api/test-db';
 $ignorePaths[] = '/public_html/api/wiki/menu';
 $ignorePaths[] = '/public_html/api/wiki/article';
-$ignorePaths[] = '/public_html/api/auth/login';
-$ignorePaths[] = '/public_html/api/test-db';
+$ignorePaths[] = '/public_html/api/auth/register';
+$ignorePaths[] = '/public_html/api/auth/verify';
 
 $pathRule = new RequestPathRule(
     paths: ['/'], 
@@ -128,11 +225,18 @@ $app->post('/auth/login', function (Request $request, Response $response) {
     $db = new Database();
     $conn = $db->connect();
 
-    $stmt = $conn->prepare("SELECT id, username, password_hash, role FROM users WHERE username = :username");
+    $stmt = $conn->prepare("SELECT id, username, password_hash, role, is_verified FROM users WHERE username = :username");
     $stmt->execute(['username' => $username]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password_hash'])) {
+        
+        // Verification Check
+        if ((int)$user['is_verified'] !== 1) {
+            $response->getBody()->write(json_encode(["status" => "error", "message" => "Please verify your email address before logging in."]));
+            return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
+        }
+
         // Generate JWT
         $issuedAt = time();
         $expirationTime = $issuedAt + 3600; // valid for 1 hour
@@ -159,6 +263,97 @@ $app->post('/auth/login', function (Request $request, Response $response) {
 
     $response->getBody()->write(json_encode(["status" => "error", "message" => "Invalid credentials"]));
     return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+});
+
+// Register Route
+$app->post('/auth/register', function (Request $request, Response $response) {
+    $data = $request->getParsedBody();
+    $username = trim($data['username'] ?? '');
+    $password = $data['password'] ?? '';
+    $email = trim($data['email'] ?? '');
+
+    if (empty($username) || empty($password) || empty($email)) {
+        throw new Exception("Username, password, and email are required", 400);
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception("Invalid email address", 400);
+    }
+
+    $db = new Database();
+    $conn = $db->connect();
+
+    // Check availability
+    $stmt = $conn->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
+    $stmt->execute(['username' => $username, 'email' => $email]);
+    if ($stmt->fetch()) {
+        throw new Exception("Username or email already exists", 409);
+    }
+
+    // Create User
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    $verificationToken = bin2hex(random_bytes(32));
+    
+    $stmt = $conn->prepare("INSERT INTO users (username, password_hash, email, role, verification_token, is_verified) VALUES (:username, :hash, :email, 'guest', :token, 0)");
+    $stmt->execute([
+        'username' => $username,
+        'hash' => $passwordHash,
+        'email' => $email,
+        'token' => $verificationToken
+    ]);
+
+    // Send Email
+    $verifyLink = "https://" . $_SERVER['HTTP_HOST'] . $request->getUri()->getPath(); // Base URL logic can be tricky
+    // Easier: Use the known external domain or construct from environment if possible.
+    // Assuming api.tryckfall.nu is the host requested
+    $host = $_SERVER['HTTP_HOST'] ?? 'api.tryckfall.nu';
+    
+    // Construct Verification Link
+    // If the path to this API is /api, then the verify route is /api/auth/verify
+    $basePath = $_ENV['APP_BASE_PATH'] ?? '/api';
+    $verifyUrl = "https://" . $host . $basePath . "/auth/verify?token=" . $verificationToken;
+
+    $subject = "Verify your account at Tryckfall";
+    $message = "Hi $username,\n\nPlease click the following link to verify your account:\n$verifyUrl\n\nBest regards,\nTryckfall Team";
+    $headers = "From: no-reply@tryckfall.nu" . "\r\n" .
+               "X-Mailer: PHP/" . phpversion();
+
+    // Use php's mail() function
+    $mailSent = @mail($email, $subject, $message, $headers);
+
+    $response->getBody()->write(json_encode([
+        "status" => "success", 
+        "message" => "Registration successful. Please check your email for the verification link.",
+        "debug_link" => $mailSent ? "sent" : $verifyUrl // Fallback for dev/debug if mail fails
+    ]));
+    return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+});
+
+// Verify Route
+$app->get('/auth/verify', function (Request $request, Response $response) {
+    $token = $request->getQueryParams()['token'] ?? null;
+
+    if (!$token) {
+        throw new Exception("Missing verification token", 400);
+    }
+
+    $db = new Database();
+    $conn = $db->connect();
+
+    $stmt = $conn->prepare("SELECT id FROM users WHERE verification_token = :token AND is_verified = 0");
+    $stmt->execute(['token' => $token]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        throw new Exception("Invalid or expired verification token", 400);
+    }
+
+    // Verify User
+    $update = $conn->prepare("UPDATE users SET is_verified = 1, verification_token = NULL WHERE id = :id");
+    $update->execute(['id' => $user['id']]);
+
+    $response->getBody()->write(json_encode(["status" => "success", "message" => "Account verified successfully. You can now login."]));
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 // Routing Middleware moved to top
@@ -624,6 +819,11 @@ $app->post('/wiki/upload', function (Request $request, Response $response) use (
         $response->getBody()->write($payload);
         return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
     }
+});
+
+// Handle OPTIONS requests separately to avoid 405 errors (Catch-all must be LAST)
+$app->map(['OPTIONS'], '/{routes:.+}', function ($request, $response) {
+    return $response;
 });
 
 $app->run();

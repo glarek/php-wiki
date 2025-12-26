@@ -125,3 +125,4 @@ class Article
         $stmt = $this->conn->prepare("DELETE FROM articles WHERE id = :id");
         return $stmt->execute(['id' => $id]);
     }
+}
