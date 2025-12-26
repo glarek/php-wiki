@@ -24,8 +24,10 @@ $dotenv->load();
 // Create App
 $app = AppFactory::create();
 
-// Set base path for current local setup (Project Root is DocumentRoot)
-$app->setBasePath('/public_html/api'); 
+// Set base path (Dynamic from .env, or null if root)
+if (isset($_ENV['APP_BASE_PATH'])) {
+    $app->setBasePath($_ENV['APP_BASE_PATH']);
+}
 
 $app->addBodyParsingMiddleware();
 
