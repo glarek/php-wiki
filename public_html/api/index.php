@@ -58,9 +58,23 @@ $options = new Options(
 );
 
 // Rules: Check paths, ignore login/test
+$ignorePaths = ['/auth/login', '/test-db', '/debug-routing'];
+
+// Add Base Path variants if dynamic base path is set
+if (isset($_ENV['APP_BASE_PATH'])) {
+    $bp = rtrim($_ENV['APP_BASE_PATH'], '/');
+    $ignorePaths[] = $bp . '/auth/login';
+    $ignorePaths[] = $bp . '/test-db';
+    $ignorePaths[] = $bp . '/debug-routing';
+}
+
+// Legacy/Hardcoded fallbacks for local dev
+$ignorePaths[] = '/public_html/api/auth/login';
+$ignorePaths[] = '/public_html/api/test-db';
+
 $pathRule = new RequestPathRule(
     paths: ['/'], 
-    ignore: ['/auth/login', '/test-db', '/public_html/api/auth/login', '/public_html/api/test-db']
+    ignore: array_unique($ignorePaths)
 );
 // Rule: Ignore OPTIONS method for CORS
 $methodRule = new RequestMethodRule(ignore: ['OPTIONS']);
