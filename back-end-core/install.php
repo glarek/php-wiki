@@ -24,6 +24,8 @@ $sql = "CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'guest',
     verification_token VARCHAR(255) DEFAULT NULL,
@@ -53,7 +55,7 @@ if ($stmt->fetch()) {
 } else {
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
     
-    $insert = $conn->prepare("INSERT INTO users (username, email, password_hash, role, is_verified) VALUES (:username, :email, :hash, 'admin', 1)");
+    $insert = $conn->prepare("INSERT INTO users (username, email, first_name, last_name, password_hash, role, is_verified) VALUES (:username, :email, 'Admin', 'User', :hash, 'admin', 1)");
     $insert->execute([
         'username' => $username,
         'email' => $email,

@@ -17,7 +17,9 @@ Local: `http://localhost:8000/api`
   {
     "username": "john_doe",
     "password": "securePassword123",
-    "email": "john@example.com"
+    "email": "john@example.com",
+    "first_name": "John",
+    "last_name": "Doe"
   }
   ```
 - **Response (201 Created)**:

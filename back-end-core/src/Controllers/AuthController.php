@@ -77,9 +77,15 @@ class AuthController
         $username = trim($data['username'] ?? '');
         $password = $data['password'] ?? '';
         $email = trim($data['email'] ?? '');
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName = trim($data['last_name'] ?? '');
 
-        if (empty($username) || empty($password) || empty($email)) {
-            throw new Exception("Username, password, and email are required", 400);
+        if (empty($username) || empty($password) || empty($email) || empty($firstName) || empty($lastName)) {
+            throw new Exception("Username, password, email, first name, and last name are required", 400);
+        }
+
+        if (strlen($firstName) < 1 || strlen($lastName) < 1) {
+             throw new Exception("First name and last name must be at least 1 character long", 400);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -97,11 +103,13 @@ class AuthController
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $verificationToken = bin2hex(random_bytes(32));
         
-        $stmt = $this->conn->prepare("INSERT INTO users (username, password_hash, email, role, verification_token, is_verified) VALUES (:username, :hash, :email, 'guest', :token, 0)");
+        $stmt = $this->conn->prepare("INSERT INTO users (username, password_hash, email, first_name, last_name, role, verification_token, is_verified) VALUES (:username, :hash, :email, :first_name, :last_name, 'guest', :token, 0)");
         $stmt->execute([
             'username' => $username,
             'hash' => $passwordHash,
             'email' => $email,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'token' => $verificationToken
         ]);
 
