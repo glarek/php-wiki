@@ -22,7 +22,6 @@ echo "Connected to database.\n";
 // 1. Create Users Table
 $sql = "CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL UNIQUE,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
@@ -42,27 +41,25 @@ try {
 
 // 2. Create Admin User
 // Configure your default admin credentials here
-$username = 'admin';
 $email = 'admin@example.com';
 $password = 'password123'; // CHANGE THIS! using a simple one for initial setup
 
 // Check if admin already exists
-$stmt = $conn->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
-$stmt->execute(['username' => $username, 'email' => $email]);
+$stmt = $conn->prepare("SELECT id FROM users WHERE email = :email");
+$stmt->execute(['email' => $email]);
 
 if ($stmt->fetch()) {
-    echo "User '$username' (or email '$email') already exists. Skipping creation.\n";
+    echo "User (email '$email') already exists. Skipping creation.\n";
 } else {
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
     
-    $insert = $conn->prepare("INSERT INTO users (username, email, first_name, last_name, password_hash, role, is_verified) VALUES (:username, :email, 'Admin', 'User', :hash, 'admin', 1)");
+    $insert = $conn->prepare("INSERT INTO users (email, first_name, last_name, password_hash, role, is_verified) VALUES (:email, 'Admin', 'User', :hash, 'admin', 1)");
     $insert->execute([
-        'username' => $username,
         'email' => $email,
         'hash' => $passwordHash
     ]);
     
-    echo "User '$username' created successfully.\n";
+    echo "Admin user created successfully.\n";
     echo "Email: $email\n";
     echo "Password: $password\n";
     echo "IMPORTANT: Please change this password later.\n";

@@ -31,7 +31,7 @@ class AuthController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        $stmt = $this->conn->prepare("SELECT id, username, password_hash, role, is_verified FROM users WHERE email = :email");
+        $stmt = $this->conn->prepare("SELECT id, email, password_hash, role, is_verified, first_name, last_name FROM users WHERE email = :email");
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -46,11 +46,13 @@ class AuthController
             // Generate JWT
             $issuedAt = time();
             $expirationTime = $issuedAt + 3600; // valid for 1 hour
+            // Add custom name claim for frontend display
+            $fullName = $user['first_name'] . ' ' . $user['last_name'];
             $payload = [
                 'iat' => $issuedAt,
                 'exp' => $expirationTime,
                 'sub' => $user['id'],
-                'user' => $user['username'],
+                'name' => $fullName,
                 'role' => $user['role']
             ];
 
@@ -60,7 +62,8 @@ class AuthController
                 "status" => "success",
                 "token" => $jwt,
                 "user" => [
-                    "username" => $user['username'],
+                    "name" => $fullName,
+                    "email" => $user['email'],
                     "role" => $user['role']
                 ]
             ]));
@@ -74,14 +77,13 @@ class AuthController
     public function register(Request $request, Response $response): Response
     {
         $data = $request->getParsedBody();
-        $username = trim($data['username'] ?? '');
         $password = $data['password'] ?? '';
         $email = trim($data['email'] ?? '');
         $firstName = trim($data['first_name'] ?? '');
         $lastName = trim($data['last_name'] ?? '');
 
-        if (empty($username) || empty($password) || empty($email) || empty($firstName) || empty($lastName)) {
-            throw new Exception("Username, password, email, first name, and last name are required", 400);
+        if (empty($password) || empty($email) || empty($firstName) || empty($lastName)) {
+            throw new Exception("Password, email, first name, and last name are required", 400);
         }
 
         if (strlen($firstName) < 1 || strlen($lastName) < 1) {
@@ -93,19 +95,18 @@ class AuthController
         }
 
         // Check availability
-        $stmt = $this->conn->prepare("SELECT id FROM users WHERE username = :username OR email = :email");
-        $stmt->execute(['username' => $username, 'email' => $email]);
+        $stmt = $this->conn->prepare("SELECT id FROM users WHERE email = :email");
+        $stmt->execute(['email' => $email]);
         if ($stmt->fetch()) {
-            throw new Exception("Username or email already exists", 409);
+            throw new Exception("Email already exists", 409);
         }
 
         // Create User
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $verificationToken = bin2hex(random_bytes(32));
         
-        $stmt = $this->conn->prepare("INSERT INTO users (username, password_hash, email, first_name, last_name, role, verification_token, is_verified) VALUES (:username, :hash, :email, :first_name, :last_name, 'guest', :token, 0)");
+        $stmt = $this->conn->prepare("INSERT INTO users (password_hash, email, first_name, last_name, role, verification_token, is_verified) VALUES (:hash, :email, :first_name, :last_name, 'guest', :token, 0)");
         $stmt->execute([
-            'username' => $username,
             'hash' => $passwordHash,
             'email' => $email,
             'first_name' => $firstName,
@@ -115,11 +116,11 @@ class AuthController
 
         // Send Email via PHPMailer
         try {
-            $this->sendVerificationEmail($email, $username, $verificationToken, $request);
+            $this->sendVerificationEmail($email, $verificationToken, $request);
         } catch (MailerException $e) {
             // Mail failed, so we must delete the user to prevent "zombie" accounts
-            $cleanup = $this->conn->prepare("DELETE FROM users WHERE username = :username");
-            $cleanup->execute(['username' => $username]);
+            $cleanup = $this->conn->prepare("DELETE FROM users WHERE email = :email");
+            $cleanup->execute(['email' => $email]);
             
             $hostInfo = $_ENV['SMTP_HOST'] . ':' . $_ENV['SMTP_PORT'];
             throw new Exception("Registration failed: Email could not be sent (Host: $hostInfo). Error: {$e->getMessage()}", 500);
@@ -156,7 +157,7 @@ class AuthController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    private function sendVerificationEmail($email, $username, $token, Request $request)
+    private function sendVerificationEmail($email, $token, Request $request)
     {
          // Send Email via PHPMailer
          $host = $_SERVER['HTTP_HOST'] ?? 'api.tryckfall.nu';
@@ -183,21 +184,21 @@ class AuthController
  
          // Recipients
          $mail->setFrom($_ENV['SMTP_USER'], 'Tryckfall API');
-         $mail->addAddress($email, $username);
+         $mail->addAddress($email);
  
          // Content
          $mail->isHTML(true);
          $mail->Subject = 'Verify your account at Tryckfall';
          $mail->Body    = "
              <h1>Welcome to Tryckfall!</h1>
-             <p>Hi $username,</p>
+             <p>Hi,</p>
              <p>Please click the button below to verify your account:</p>
              <p><a href='$verifyUrl' style='background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Verify Email</a></p>
              <p>Or copy this link: $verifyUrl</p>
              <br>
              <p>Best regards,<br>Tryckfall Team</p>
          ";
-         $mail->AltBody = "Hi $username,\n\nPlease verify your account: $verifyUrl\n\nBest regards,\nTryckfall Team";
+         $mail->AltBody = "Hi,\n\nPlease verify your account: $verifyUrl\n\nBest regards,\nTryckfall Team";
  
          $mail->send();
     }

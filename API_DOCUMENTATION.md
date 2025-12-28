@@ -15,7 +15,6 @@ Local: `http://localhost:8000/api`
 - **Body**:
   ```json
   {
-    "username": "john_doe",
     "password": "securePassword123",
     "email": "john@example.com",
     "first_name": "John",
@@ -50,7 +49,7 @@ User clicks a link sent to their email.
   {
     "status": "success",
     "token": "eyJhbGciOiJIUzI1Ni...", // Store this JWT
-    "user": { "username": "john_doe", "role": "guest" }
+    "user": { "name": "John Doe", "email": "john@example.com", "role": "guest" }
   }
   ```
 - **Note**: Returns `403` if account is not verified.
