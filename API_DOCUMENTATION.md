@@ -41,7 +41,7 @@ User clicks a link sent to their email.
 - **Endpoint**: `POST /auth/login`
 - **Body**:
   ```json
-  { "username": "john_doe", "password": "securePassword123" }
+  { "email": "john@example.com", "password": "securePassword123" }
   ```
 - **Response (200 OK)**:
   ```json

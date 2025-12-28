@@ -22,17 +22,17 @@ class AuthController
     public function login(Request $request, Response $response): Response
     {
         $data = $request->getParsedBody();
-        $username = $data['username'] ?? null;
+        $email = $data['email'] ?? null;
         $password = $data['password'] ?? null;
 
-        if (!$username || !$password) {
-            $payload = json_encode(["status" => "error", "message" => "Username and password required"]);
+        if (!$email || !$password) {
+            $payload = json_encode(["status" => "error", "message" => "Email and password required"]);
             $response->getBody()->write($payload);
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        $stmt = $this->conn->prepare("SELECT id, username, password_hash, role, is_verified FROM users WHERE username = :username");
-        $stmt->execute(['username' => $username]);
+        $stmt = $this->conn->prepare("SELECT id, username, password_hash, role, is_verified FROM users WHERE email = :email");
+        $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($user && password_verify($password, $user['password_hash'])) {
