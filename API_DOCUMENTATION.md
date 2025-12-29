@@ -139,12 +139,37 @@ All errors follow this JSON format:
 ```json
 {
   "status": "error",
+  "code": "ERROR_CODE_STRING", // Specific error code
   "message": "Human readable error description"
 }
 ```
 
-- **400**: Validation Failed (e.g. Invalid Email, Missing Fields)
-- **401**: Missing or Invalid Token
-- **403**: Forbidden (Not Admin, or Unverified)
+### Standard Response Codes
+
+| Code                  | HTTP Status | Description                                           |
+| :-------------------- | :---------- | :---------------------------------------------------- |
+| **Authentication**    |             |                                                       |
+| `MISSING_CREDENTIALS` | 400         | Email and password are required for login.            |
+| `INVALID_CREDENTIALS` | 401         | Incorrect email or password.                          |
+| `USER_UNVERIFIED`     | 403         | Email address is not verified yet.                    |
+| `UNAUTHORIZED_ACCESS` | 401         | Invalid or missing JWT token, or token expired.       |
+| **Registration**      |             |                                                       |
+| `MISSING_FIELDS`      | 400         | Required fields (email, password, names) are missing. |
+| `INVALID_INPUT`       | 400         | Input validation failed (e.g. name length).           |
+| `INVALID_EMAIL`       | 400         | Email format is invalid.                              |
+| `EMAIL_EXISTS`        | 409         | A user with this email address already exists.        |
+| `MAIL_SEND_FAILED`    | 500         | Failed to send the verification email.                |
+| **Verification**      |             |                                                       |
+| `MISSING_TOKEN`       | 400         | Verification token is missing from the URL.           |
+| `INVALID_TOKEN`       | 400         | Verification token is invalid or has expired.         |
+| **System**            |             |                                                       |
+| `UNKNOWN_ERROR`       | 500         | An unexpected error occurred.                         |
+
+### HTTP Status Codes Summary
+
+- **400**: Validation Failed / Bad Request
+- **401**: Unauthorized (Login failed or Token invalid)
+- **403**: Forbidden (Unverified user or Insufficient permissions)
 - **404**: Resource (Article/Category) Not Found
-- **409**: Duplicate Resource (Slug/Username taken)
+- **409**: Conflict (Duplicate Resource)
+- **500**: Server Error

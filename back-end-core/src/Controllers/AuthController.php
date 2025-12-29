@@ -9,6 +9,7 @@ use Exception;
 use Firebase\JWT\JWT;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as MailerException;
+use App\Exceptions\AppException;
 
 class AuthController
 {
@@ -26,9 +27,7 @@ class AuthController
         $password = $data['password'] ?? null;
 
         if (!$email || !$password) {
-            $payload = json_encode(["status" => "error", "message" => "Email and password required"]);
-            $response->getBody()->write($payload);
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            throw new AppException("Email and password required", 400, "MISSING_CREDENTIALS");
         }
 
         $stmt = $this->conn->prepare("SELECT id, email, password_hash, role, is_verified, first_name, last_name FROM users WHERE email = :email");
@@ -39,8 +38,7 @@ class AuthController
             
             // Verification Check
             if ((int)$user['is_verified'] !== 1) {
-                $response->getBody()->write(json_encode(["status" => "error", "message" => "Please verify your email address before logging in."]));
-                return $response->withStatus(403)->withHeader('Content-Type', 'application/json');
+                throw new AppException("Please verify your email address before logging in.", 403, "USER_UNVERIFIED");
             }
 
             // Generate JWT
@@ -71,8 +69,7 @@ class AuthController
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(["status" => "error", "message" => "Invalid credentials"]));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
+        throw new AppException("Invalid credentials", 401, "INVALID_CREDENTIALS");
     }
 
     public function register(Request $request, Response $response): Response
@@ -84,22 +81,22 @@ class AuthController
         $lastName = trim($data['last_name'] ?? '');
 
         if (empty($password) || empty($email) || empty($firstName) || empty($lastName)) {
-            throw new Exception("Password, email, first name, and last name are required", 400);
+            throw new AppException("Password, email, first name, and last name are required", 400, "MISSING_FIELDS");
         }
 
         if (strlen($firstName) < 1 || strlen($lastName) < 1) {
-             throw new Exception("First name and last name must be at least 1 character long", 400);
+             throw new AppException("First name and last name must be at least 1 character long", 400, "INVALID_INPUT");
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception("Invalid email address", 400);
+            throw new AppException("Invalid email address", 400, "INVALID_EMAIL");
         }
 
         // Check availability
         $stmt = $this->conn->prepare("SELECT id FROM users WHERE email = :email");
         $stmt->execute(['email' => $email]);
         if ($stmt->fetch()) {
-            throw new Exception("Email already exists", 409);
+            throw new AppException("Email already exists", 409, "EMAIL_EXISTS");
         }
 
         // Create User
@@ -124,7 +121,7 @@ class AuthController
             $cleanup->execute(['email' => $email]);
             
             $hostInfo = $_ENV['SMTP_HOST'] . ':' . $_ENV['SMTP_PORT'];
-            throw new Exception("Registration failed: Email could not be sent (Host: $hostInfo). Error: {$e->getMessage()}", 500);
+            throw new AppException("Registration failed: Email could not be sent (Host: $hostInfo). Error: {$e->getMessage()}", 500, "MAIL_SEND_FAILED");
         }
 
         $response->getBody()->write(json_encode([
@@ -139,7 +136,7 @@ class AuthController
         $token = $request->getQueryParams()['token'] ?? null;
 
         if (!$token) {
-            throw new Exception("Missing verification token", 400);
+            throw new AppException("Missing verification token", 400, "MISSING_TOKEN");
         }
 
         $stmt = $this->conn->prepare("SELECT id FROM users WHERE verification_token = :token AND is_verified = 0");
@@ -147,7 +144,7 @@ class AuthController
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$user) {
-            throw new Exception("Invalid or expired verification token", 400);
+            throw new AppException("Invalid or expired verification token", 400, "INVALID_TOKEN");
         }
 
         // Verify User

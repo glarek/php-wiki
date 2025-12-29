@@ -21,6 +21,7 @@ use App\Controllers\WikiController;
 use App\Controllers\Admin\CategoryController;
 use App\Controllers\Admin\ArticleController;
 use App\Controllers\Admin\UploadController;
+use App\Exceptions\AppException;
 
 require __DIR__ . '/../../back-end-core/vendor/autoload.php';
 
@@ -180,15 +181,22 @@ $logErrors = true;
 $logErrorDetails = true;
 
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, $logErrors, $logErrorDetails);
+
 $errorMiddleware->setErrorHandler(
     AuthorizationException::class,
     function (Request $request, Throwable $exception, bool $displayErrorDetails, bool $logErrors, bool $logErrorDetails) use ($app) {
         $response = $app->getResponseFactory()->createResponse();
-        $payload = ["status" => "error", "message" => $exception->getMessage()];
+        $payload = [
+            "status" => "error",
+            "code" => "UNAUTHORIZED_ACCESS",
+            "message" => $exception->getMessage()
+        ];
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
         return $response->withStatus(401)->withHeader("Content-Type", "application/json");
     }
 );
+
+
 
 // Default Error Handler (Catches all other exceptions)
 $errorMiddleware->setDefaultErrorHandler(
@@ -196,13 +204,20 @@ $errorMiddleware->setDefaultErrorHandler(
         $response = $app->getResponseFactory()->createResponse();
         
         $statusCode = 500;
-        if (is_int($exception->getCode()) && $exception->getCode() >= 400 && $exception->getCode() < 600) {
+        $errorCode = 'UNKNOWN_ERROR';
+        $message = $exception->getMessage();
+
+        if ($exception instanceof AppException) {
+            $statusCode = $exception->getCode();
+            $errorCode = $exception->getType();
+        } elseif (is_int($exception->getCode()) && $exception->getCode() >= 400 && $exception->getCode() < 600) {
             $statusCode = $exception->getCode();
         }
 
         $payload = [
             'status' => 'error',
-            'message' => $exception->getMessage()
+            'code' => $errorCode,
+            'message' => $message
         ];
         
         if ($displayErrorDetails) {
