@@ -47,12 +47,12 @@ class AuthController
             $issuedAt = time();
             $expirationTime = $issuedAt + 3600; // valid for 1 hour
             // Add custom name claim for frontend display
-            $fullName = $user['first_name'] . ' ' . $user['last_name'];
             $payload = [
                 'iat' => $issuedAt,
                 'exp' => $expirationTime,
                 'sub' => $user['id'],
-                'name' => $fullName,
+                'first_name' => $user['first_name'],
+                'last_name' => $user['last_name'],
                 'role' => $user['role']
             ];
 
@@ -62,7 +62,8 @@ class AuthController
                 "status" => "success",
                 "token" => $jwt,
                 "user" => [
-                    "name" => $fullName,
+                    "first_name" => $user['first_name'],
+                    "last_name" => $user['last_name'],
                     "email" => $user['email'],
                     "role" => $user['role']
                 ]

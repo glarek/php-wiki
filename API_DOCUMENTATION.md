@@ -49,7 +49,12 @@ User clicks a link sent to their email.
   {
     "status": "success",
     "token": "eyJhbGciOiJIUzI1Ni...", // Store this JWT
-    "user": { "name": "John Doe", "email": "john@example.com", "role": "guest" }
+    "user": {
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "role": "guest"
+    }
   }
   ```
 - **Note**: Returns `403` if account is not verified.
