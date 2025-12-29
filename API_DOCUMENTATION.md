@@ -197,24 +197,25 @@ All errors follow this JSON format:
 
 ### Standard Response Codes
 
-| Code                  | HTTP Status | Description                                           |
-| :-------------------- | :---------- | :---------------------------------------------------- |
-| **Authentication**    |             |                                                       |
-| `MISSING_CREDENTIALS` | 400         | Email and password are required for login.            |
-| `INVALID_CREDENTIALS` | 401         | Incorrect email or password.                          |
-| `USER_UNVERIFIED`     | 403         | Email address is not verified yet.                    |
-| `UNAUTHORIZED_ACCESS` | 401         | Invalid or missing JWT token, or token expired.       |
-| **Registration**      |             |                                                       |
-| `MISSING_FIELDS`      | 400         | Required fields (email, password, names) are missing. |
-| `INVALID_INPUT`       | 400         | Input validation failed (e.g. name length).           |
-| `INVALID_EMAIL`       | 400         | Email format is invalid.                              |
-| `EMAIL_EXISTS`        | 409         | A user with this email address already exists.        |
-| `MAIL_SEND_FAILED`    | 500         | Failed to send the verification email.                |
-| **Verification**      |             |                                                       |
-| `MISSING_TOKEN`       | 400         | Verification token is missing from the URL.           |
-| `INVALID_TOKEN`       | 400         | Verification token is invalid or has expired.         |
-| **System**            |             |                                                       |
-| `UNKNOWN_ERROR`       | 500         | An unexpected error occurred.                         |
+| Code                  | HTTP Status | Description                                                    |
+| :-------------------- | :---------- | :------------------------------------------------------------- |
+| **Authentication**    |             |                                                                |
+| `MISSING_CREDENTIALS` | 400         | Email and password are required for login.                     |
+| `INVALID_CREDENTIALS` | 401         | Incorrect email or password.                                   |
+| `USER_UNVERIFIED`     | 403         | Email address is not verified yet.                             |
+| `ACCOUNT_LOCKED`      | 429         | Account is temporarily locked due to too many failed attempts. |
+| `UNAUTHORIZED_ACCESS` | 401         | Invalid or missing JWT token, or token expired.                |
+| **Registration**      |             |                                                                |
+| `MISSING_FIELDS`      | 400         | Required fields (email, password, names) are missing.          |
+| `INVALID_INPUT`       | 400         | Input validation failed (e.g. name length).                    |
+| `INVALID_EMAIL`       | 400         | Email format is invalid.                                       |
+| `EMAIL_EXISTS`        | 409         | A user with this email address already exists.                 |
+| `MAIL_SEND_FAILED`    | 500         | Failed to send the verification email.                         |
+| **Verification**      |             |                                                                |
+| `MISSING_TOKEN`       | 400         | Verification token is missing from the URL.                    |
+| `INVALID_TOKEN`       | 400         | Verification token is invalid or has expired.                  |
+| **System**            |             |                                                                |
+| `UNKNOWN_ERROR`       | 500         | An unexpected error occurred.                                  |
 
 ### HTTP Status Codes Summary
 

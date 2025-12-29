@@ -32,6 +32,8 @@ $sql = "CREATE TABLE IF NOT EXISTS users (
     is_verified TINYINT(1) DEFAULT 0,
     reset_token VARCHAR(255) DEFAULT NULL,
     reset_token_expires_at DATETIME DEFAULT NULL,
+    failed_login_attempts INT DEFAULT 0,
+    locked_until DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )";
 

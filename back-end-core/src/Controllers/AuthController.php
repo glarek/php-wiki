@@ -30,16 +30,34 @@ class AuthController
             throw new AppException("Email and password required", 400, "MISSING_CREDENTIALS");
         }
 
-        $stmt = $this->conn->prepare("SELECT id, email, password_hash, role, is_verified, first_name, last_name FROM users WHERE email = :email");
+        $stmt = $this->conn->prepare("SELECT id, email, password_hash, role, is_verified, first_name, last_name, failed_login_attempts, locked_until FROM users WHERE email = :email");
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($user && password_verify($password, $user['password_hash'])) {
+        // Security: Always delay slightly to mitigate timing attacks on existence check
+        usleep(rand(100000, 300000)); // 100ms - 300ms
+
+        if (!$user) {
+             throw new AppException("Invalid credentials", 401, "INVALID_CREDENTIALS");
+        }
+
+        // Check Lockout
+        if ($user['locked_until'] && strtotime($user['locked_until']) > time()) {
+             $wait = strtotime($user['locked_until']) - time();
+             $minutes = ceil($wait / 60);
+             throw new AppException("Account is temporarily locked due to too many failed attempts. Try again in $minutes minutes.", 429, "ACCOUNT_LOCKED");
+        }
+
+        if (password_verify($password, $user['password_hash'])) {
             
             // Verification Check
             if ((int)$user['is_verified'] !== 1) {
                 throw new AppException("Please verify your email address before logging in.", 403, "USER_UNVERIFIED");
             }
+
+            // Reset failed attempts on success
+            $reset = $this->conn->prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = :id");
+            $reset->execute(['id' => $user['id']]);
 
             // Generate JWT
             $issuedAt = time();
@@ -82,6 +100,25 @@ class AuthController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
         }
+
+        // Handle Failed Attempt
+        $failedAttempts = (int)$user['failed_login_attempts'] + 1;
+        $lockedUntil = null;
+        
+        // Progressive Delays (simulated via sleep for immediate response, or lockout for future)
+        if ($failedAttempts >= 5) {
+            // Lockout for 15 minutes after 5th attempt
+             $lockedUntil = date('Y-m-d H:i:s', time() + 900);
+        } elseif ($failedAttempts >= 3) {
+            sleep(5); // Delay 5s
+        }
+
+        $update = $this->conn->prepare("UPDATE users SET failed_login_attempts = :attempts, locked_until = :locked WHERE id = :id");
+        $update->execute([
+            'attempts' => $failedAttempts,
+            'locked' => $lockedUntil,
+            'id' => $user['id']
+        ]);
 
         throw new AppException("Invalid credentials", 401, "INVALID_CREDENTIALS");
     }
