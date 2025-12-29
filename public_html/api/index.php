@@ -95,6 +95,9 @@ if (isset($_ENV['APP_BASE_PATH'])) {
     $ignorePaths[] = $bp . '/wiki/article';
     $ignorePaths[] = $bp . '/auth/register';
     $ignorePaths[] = $bp . '/auth/verify';
+    $ignorePaths[] = $bp . '/auth/forgot-password';
+    $ignorePaths[] = $bp . '/auth/reset-password';
+    $ignorePaths[] = $bp . '/auth/refresh';
 }
 // Legacy/Hardcoded fallbacks
 $ignorePaths[] = '/public_html/api/auth/login';
@@ -103,6 +106,9 @@ $ignorePaths[] = '/public_html/api/wiki/menu';
 $ignorePaths[] = '/public_html/api/wiki/article';
 $ignorePaths[] = '/public_html/api/auth/register';
 $ignorePaths[] = '/public_html/api/auth/verify';
+$ignorePaths[] = '/public_html/api/auth/forgot-password';
+$ignorePaths[] = '/public_html/api/auth/reset-password';
+$ignorePaths[] = '/public_html/api/auth/refresh';
 
 $pathRule = new RequestPathRule(
     paths: ['/'], 
@@ -124,6 +130,9 @@ $app->add($jwtMiddleware);
 $app->post('/auth/register', [AuthController::class, 'register']);
 $app->post('/auth/login', [AuthController::class, 'login']);
 $app->get('/auth/verify', [AuthController::class, 'verify']);
+$app->post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+$app->post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+$app->post('/auth/refresh', [AuthController::class, 'refreshToken']);
 
 // Middleware Import
 use App\Middleware\AdminMiddleware;

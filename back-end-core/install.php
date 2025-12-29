@@ -28,7 +28,10 @@ $sql = "CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'guest',
     verification_token VARCHAR(255) DEFAULT NULL,
+    verification_token_expires_at DATETIME DEFAULT NULL,
     is_verified TINYINT(1) DEFAULT 0,
+    reset_token VARCHAR(255) DEFAULT NULL,
+    reset_token_expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )";
 
@@ -63,4 +66,21 @@ if ($stmt->fetch()) {
     echo "Email: $email\n";
     echo "Password: $password\n";
     echo "IMPORTANT: Please change this password later.\n";
+}
+
+// 3. Create Refresh Tokens Table
+$sqlRefresh = "CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    token_hash VARCHAR(64) NOT NULL,
+    user_id INT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)";
+
+try {
+    $conn->exec($sqlRefresh);
+    echo "Table 'refresh_tokens' created or already exists.\n";
+} catch (PDOException $e) {
+    die("Error creating table 'refresh_tokens': " . $e->getMessage() . "\n");
 }

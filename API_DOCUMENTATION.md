@@ -48,7 +48,8 @@ User clicks a link sent to their email.
   ```json
   {
     "status": "success",
-    "token": "eyJhbGciOiJIUzI1Ni...", // Store this JWT
+    "token": "eyJhbGciOiJIUzI1Ni...", // Access Token (valid 1 hour)
+    "refresh_token": "a1b2c3d4...", // Refresh Token (valid 7 days)
     "user": {
       "first_name": "John",
       "last_name": "Doe",
@@ -58,6 +59,56 @@ User clicks a link sent to their email.
   }
   ```
 - **Note**: Returns `403` if account is not verified.
+
+### 4. Refresh Token
+
+Used to obtain a new Access Token when the current one expires.
+
+- **Endpoint**: `POST /auth/refresh`
+- **Body**:
+  ```json
+  { "refresh_token": "YOUR_REFRESH_TOKEN" }
+  ```
+- **Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "token": "eyJhbGciOiJIUzI1Ni...", // New Access Token
+    "refresh_token": "new_random_token..." // New Refresh Token (Rolled)
+  }
+  ```
+- **Error**: Returns `401` if refresh token is invalid/expired.
+
+### 5. Forgot Password
+
+Initiates the password reset process. Sending duplicate requests is safe (always returns success).
+
+- **Endpoint**: `POST /auth/forgot-password`
+- **Body**:
+  ```json
+  { "email": "john@example.com" }
+  ```
+- **Response (200 OK)**:
+  ```json
+  { "status": "success", "message": "If the email exists..." }
+  ```
+
+### 6. Reset Password
+
+Completes the password reset process using the token sent via email.
+
+- **Endpoint**: `POST /auth/reset-password`
+- **Body**:
+  ```json
+  {
+    "token": "TOKEN_FROM_EMAIL_LINK",
+    "password": "newSecurePassword123"
+  }
+  ```
+- **Response (200 OK)**:
+  ```json
+  { "status": "success", "message": "Password has been reset..." }
+  ```
 
 ## Public Data (Wiki)
 
